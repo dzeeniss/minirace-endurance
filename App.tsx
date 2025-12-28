@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserRole, RaceStatus, Race, RaceTeam, PitStopStatus, PitStop, Driver, RaceHistoryEntry, TeamRaceResult } from './types';
 import { FlagIcon, ZapIcon, TimerIcon, UserIcon, SettingsIcon } from './components/Icons';
@@ -52,6 +51,12 @@ const Card = ({ children, className = "", title, headerAction }: any) => (
     )}
     <div className="p-5 flex-1">{children}</div>
   </div>
+);
+
+const DriverBadge = ({ isPro }: { isPro: boolean }) => (
+  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${isPro ? 'bg-rose-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
+    {isPro ? 'PRO' : 'AM'}
+  </span>
 );
 
 const HistoryTable = ({ history }: { history: RaceHistoryEntry[] }) => (
@@ -110,11 +115,7 @@ const CloudSetupModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
 
   const handleTest = async () => {
     setStatus('testing');
-    
-    // Save Gemini Key
     localStorage.setItem('gemini_api_key', geminiKey);
-    
-    // Test Firebase
     const success = await db.testConnection(form);
     if (success) {
       setStatus('success');
@@ -149,8 +150,8 @@ const CloudSetupModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
             <div>
                <p className="text-white font-bold mb-1">Firebase (Database):</p>
                <p>1. Go to <a href="https://console.firebase.google.com" target="_blank" className="text-blue-400 underline">Firebase Console</a></p>
-               <p>2. Create Project &rarr; Build &rarr; Firestore (Test Mode).</p>
-               <p>3. Project Settings &rarr; Web App &rarr; Copy config keys.</p>
+               <p>{"2. Create Project -> Build -> Firestore (Test Mode)."}</p>
+               <p>{"3. Project Settings -> Web App -> Copy config keys."}</p>
             </div>
             <div>
                <p className="text-white font-bold mb-1">Gemini (AI Commentary):</p>
@@ -464,22 +465,6 @@ function MarshallDashboard({ race, teams, history, onUpdateRace, onUpdateTeams, 
           )}
         </Card>
 
-        {db.isLocalMode() && (
-          <Card title="Cloud Setup" className="border-amber-500/30">
-            <div className="space-y-3">
-               <div className="p-3 bg-amber-600/5 rounded border border-amber-600/20">
-                  <p className="text-[10px] font-bold text-amber-500 uppercase mb-1">⚠️ Local Mode Only</p>
-                  <p className="text-[11px] leading-relaxed text-slate-400">
-                    To sync data between devices, you must connect a Cloud project.
-                  </p>
-                  <p className="text-[11px] mt-2 font-bold text-amber-400">
-                    Click the setup badge in the header.
-                  </p>
-               </div>
-            </div>
-          </Card>
-        )}
-
         <Card title="Team Accounts">
            <div className="space-y-3">
               <input type="text" value={newTeamName} onChange={e => setNewTeamName(e.target.value)} placeholder="Team Name" className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs outline-none" />
@@ -498,6 +483,7 @@ function MarshallDashboard({ race, teams, history, onUpdateRace, onUpdateTeams, 
                  )}
                  {teams.filter(t => race?.registeredTeamIds.includes(t.id)).map(t => {
                    const activePit = t.pitStops.find(ps => ps.status !== PitStopStatus.APPROVED);
+                   const currentDriver = t.drivers.find(d => d.id === t.currentDriverId);
                    return (
                      <div key={t.id} className={`p-4 rounded-xl border transition-all ${activePit ? 'bg-amber-500/10 border-amber-500/50 scale-[1.02]' : 'bg-black/20 border-slate-800'}`}>
                         <div className="flex justify-between items-start mb-3">
@@ -507,7 +493,10 @@ function MarshallDashboard({ race, teams, history, onUpdateRace, onUpdateTeams, 
                            </div>
                            <div className="text-right">
                               <span className="text-[10px] font-black text-slate-500 block">Pilot</span>
-                              <span className="text-xs font-bold text-emerald-400 uppercase tracking-tighter">{t.drivers.find(d => d.id === t.currentDriverId)?.name || '---'}</span>
+                              <div className="flex items-center gap-2 justify-end">
+                                <span className="text-xs font-bold text-emerald-400 uppercase tracking-tighter">{currentDriver?.name || '---'}</span>
+                                {currentDriver && <DriverBadge isPro={currentDriver.isPro} />}
+                              </div>
                            </div>
                         </div>
                         {activePit ? (
@@ -542,6 +531,7 @@ function MarshallDashboard({ race, teams, history, onUpdateRace, onUpdateTeams, 
 function TeamDashboard({ race, teams, history, currentTeamId, onUpdateRace, onUpdateTeams, triggerCommentary }: any) {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [newName, setNewName] = useState("");
+  const [isProEntry, setIsProEntry] = useState(false);
   const [selectedStart, setSelectedStart] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -552,6 +542,13 @@ function TeamDashboard({ race, teams, history, currentTeamId, onUpdateRace, onUp
     setLoading(true);
     await onUpdateTeams(teams.map((t: any) => t.id === currentTeamId ? { ...t, drivers, isApproved: true, currentDriverId: drivers[0].id } : t));
     setLoading(false);
+  };
+
+  const addDriverToTempRoster = () => {
+    if (!newName) return;
+    setDrivers([...drivers, { id: Math.random().toString(), name: newName, isPro: isProEntry, totalTimeDriven: 0 }]);
+    setNewName("");
+    setIsProEntry(false);
   };
 
   const joinRace = async () => {
@@ -570,15 +567,35 @@ function TeamDashboard({ race, teams, history, currentTeamId, onUpdateRace, onUp
       <div className="max-w-md mx-auto py-12">
         <Card title="Driver Registration">
           <div className="space-y-6">
-            <div className="flex gap-2">
-              <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Full Name" className="flex-1 bg-slate-800 border border-slate-700 rounded px-3" />
-              <Button onClick={() => { if(newName) setDrivers([...drivers, { id: Math.random().toString(), name: newName, isPro: false, totalTimeDriven: 0 }]); setNewName(""); }} className="text-xs">Add</Button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={newName} 
+                  onChange={e => setNewName(e.target.value)} 
+                  placeholder="Full Name" 
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded px-3 outline-none focus:ring-1 focus:ring-blue-500" 
+                />
+                <Button onClick={addDriverToTempRoster} className="text-xs">Add</Button>
+              </div>
+              <div className="flex items-center gap-3 px-1">
+                <button 
+                  onClick={() => setIsProEntry(!isProEntry)}
+                  className={`flex items-center gap-2 text-[10px] font-black uppercase transition-colors ${isProEntry ? 'text-rose-500' : 'text-slate-500'}`}
+                >
+                  <div className={`h-3 w-3 rounded border ${isProEntry ? 'bg-rose-500 border-rose-500' : 'border-slate-700'}`} />
+                  Professional Driver Status
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-2">
               {drivers.map(d => (
-                <div key={d.id} className="text-xs bg-black/40 p-3 rounded flex justify-between border border-slate-800">
-                  <span className="font-bold">{d.name}</span>
-                  <button onClick={() => setDrivers(drivers.filter(dr => dr.id !== d.id))} className="text-rose-500 font-black">REMOVE</button>
+                <div key={d.id} className="text-xs bg-black/40 p-3 rounded flex justify-between items-center border border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold">{d.name}</span>
+                    <DriverBadge isPro={d.isPro} />
+                  </div>
+                  <button onClick={() => setDrivers(drivers.filter(dr => dr.id !== d.id))} className="text-rose-500 text-[10px] font-black">REMOVE</button>
                 </div>
               ))}
             </div>
@@ -602,7 +619,7 @@ function TeamDashboard({ race, teams, history, currentTeamId, onUpdateRace, onUp
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center block">First Pilot Out</label>
               <select value={selectedStart} onChange={e => setSelectedStart(e.target.value)} className="w-full bg-slate-800 border border-slate-700 p-3 rounded-lg font-bold outline-none">
                 <option value="">Select Pilot...</option>
-                {team.drivers.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {team.drivers.map((d: any) => <option key={d.id} value={d.id}>{d.name} {d.isPro ? '(PRO)' : '(AM)'}</option>)}
               </select>
             </div>
             <Button onClick={joinRace} disabled={!selectedStart} loading={loading} className="w-full h-20 text-2xl uppercase font-black italic shadow-xl shadow-blue-500/20">Commit to Grid</Button>
@@ -628,8 +645,11 @@ function TeamDashboard({ race, teams, history, currentTeamId, onUpdateRace, onUp
              <div className="space-y-2">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Pilot Rotation</p>
                 {team.drivers.map((d: any) => (
-                  <div key={d.id} className={`flex justify-between p-2 rounded text-[10px] border ${d.id === team.currentDriverId ? 'bg-blue-600/20 border-blue-500/50' : 'bg-slate-800/30 border-slate-800'}`}>
-                    <span className="font-bold">{d.name}</span>
+                  <div key={d.id} className={`flex justify-between items-center p-2 rounded text-[10px] border ${d.id === team.currentDriverId ? 'bg-blue-600/20 border-blue-500/50' : 'bg-slate-800/30 border-slate-800'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">{d.name}</span>
+                      <DriverBadge isPro={d.isPro} />
+                    </div>
                     <span className="font-mono">{formatDuration(d.totalTimeDriven)}</span>
                   </div>
                 ))}
@@ -749,7 +769,7 @@ function TeamPitManager({ team, race, teams, onUpdateTeams, triggerCommentary }:
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Incoming Pilot</label>
               <select value={config.driverIn} onChange={e => setConfig({...config, driverIn: e.target.value})} className="w-full bg-slate-800 border border-slate-700 p-4 rounded-xl font-black text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                 <option value="">Next Driver...</option>
-                {team.drivers.filter((d:any) => d.id !== team.currentDriverId).map((d:any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {team.drivers.filter((d:any) => d.id !== team.currentDriverId).map((d:any) => <option key={d.id} value={d.id}>{d.name} {d.isPro ? '(PRO)' : '(AM)'}</option>)}
               </select>
             </div>
             <div className="flex flex-col justify-end">
