@@ -102,16 +102,26 @@ const CloudSetupModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
   };
 
   const [form, setForm] = useState(initial);
+  const [geminiKey, setGeminiKey] = useState(localStorage.getItem('gemini_api_key') || "");
   const [status, setStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [showHelp, setShowHelp] = useState(false);
 
   if (!isOpen) return null;
 
   const handleTest = async () => {
     setStatus('testing');
+    
+    // Save Gemini Key
+    localStorage.setItem('gemini_api_key', geminiKey);
+    
+    // Test Firebase
     const success = await db.testConnection(form);
     if (success) {
       setStatus('success');
-      setTimeout(() => onClose(), 1000);
+      setTimeout(() => {
+        onClose();
+        window.location.reload();
+      }, 1000);
     } else {
       setStatus('error');
     }
@@ -119,40 +129,79 @@ const CloudSetupModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm overflow-y-auto">
-      <div className="max-w-md w-full bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl my-auto">
+      <div className="max-w-lg w-full bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl my-auto">
         <div className="flex justify-between items-start mb-6">
-          <h2 className="text-2xl font-black italic uppercase text-white">Firebase Config</h2>
-          <button onClick={onClose} className="text-slate-500 hover:text-white">&times;</button>
+          <h2 className="text-2xl font-black italic uppercase text-white">System Config</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-white text-2xl">&times;</button>
         </div>
         
-        <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-          Paste your <span className="text-amber-400 font-bold">firebaseConfig</span> object details from the Firebase Console (Settings > General).
-        </p>
+        <div className="mb-6 flex items-center justify-between bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
+          <p className="text-xs text-blue-200 leading-relaxed font-medium">
+            Connect Cloud services to enable sync and AI features.
+          </p>
+          <button onClick={() => setShowHelp(!showHelp)} className="text-[10px] font-black uppercase text-blue-400 underline underline-offset-4">
+            {showHelp ? "Hide Instructions" : "How to get keys?"}
+          </button>
+        </div>
 
-        <div className="space-y-3">
-          {Object.keys(form).map((key) => (
-            <div key={key}>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">{key}</label>
+        {showHelp && (
+          <div className="mb-6 bg-black/40 p-4 rounded-xl text-[11px] text-slate-400 space-y-3 border border-slate-800 animate-in fade-in slide-in-from-top-2">
+            <div>
+               <p className="text-white font-bold mb-1">Firebase (Database):</p>
+               <p>1. Go to <a href="https://console.firebase.google.com" target="_blank" className="text-blue-400 underline">Firebase Console</a></p>
+               <p>2. Create Project -> Build -> Firestore (Test Mode).</p>
+               <p>3. Project Settings -> Web App -> Copy config keys.</p>
+            </div>
+            <div>
+               <p className="text-white font-bold mb-1">Gemini (AI Commentary):</p>
+               <p>1. Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-emerald-400 underline">Google AI Studio</a>.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-6">
+          <section>
+            <h3 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-3 border-b border-emerald-500/20 pb-1">AI Services</h3>
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Gemini API Key</label>
               <input 
-                type="text" 
-                value={form[key]} 
-                onChange={e => setForm({...form, [key]: e.target.value})} 
-                placeholder={`Enter ${key}...`} 
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-amber-500"
+                type="password" 
+                value={geminiKey} 
+                onChange={e => setGeminiKey(e.target.value)} 
+                placeholder="Enter AI API Key..." 
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
-          ))}
+          </section>
+
+          <section>
+            <h3 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em] mb-3 border-b border-amber-500/20 pb-1">Firebase Cloud</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(Object.keys(form) as Array<keyof typeof form>).map((key) => (
+                <div key={key}>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 block">{key}</label>
+                  <input 
+                    type="text" 
+                    value={form[key]} 
+                    onChange={e => setForm({...form, [key]: e.target.value})} 
+                    placeholder={key} 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
 
         {status === 'error' && (
           <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs rounded text-center font-bold">
-            Connection Failed. Check your Firestore configuration.
+            Connection Failed. Check keys and Firestore "Test Mode".
           </div>
         )}
 
         <div className="mt-8 flex gap-3">
           <Button onClick={handleTest} loading={status === 'testing'} variant={status === 'success' ? 'success' : 'amber'} className="flex-1 uppercase font-black italic">
-            {status === 'success' ? 'CONNECTED!' : 'TEST & SAVE'}
+            {status === 'success' ? 'CONNECTED!' : 'SAVE & CONNECT'}
           </Button>
           {!db.isLocalMode() && (
             <Button onClick={() => db.disconnect()} variant="outline" className="text-rose-500 border-rose-500/30">Disconnect</Button>
@@ -268,7 +317,7 @@ export default function App() {
               onClick={() => setShowConfig(true)}
               className="text-[10px] font-black uppercase text-slate-600 hover:text-amber-400 tracking-widest flex items-center gap-2"
             >
-              <SettingsIcon /> SETUP FIREBASE CLOUD
+              <SettingsIcon /> SETUP SYSTEM CLOUD
             </button>
           </div>
         </div>
@@ -292,7 +341,7 @@ export default function App() {
               >
                  <div className={`h-1.5 w-1.5 rounded-full ${db.isLocalMode() ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                  <span className="text-[8px] font-black uppercase text-slate-500 group-hover:text-amber-400">
-                   {db.isLocalMode() ? 'Local Storage (Setup Firebase)' : 'Firebase Cloud Active'}
+                   {db.isLocalMode() ? 'Local Storage (Setup Cloud)' : 'System Cloud Active'}
                  </span>
               </button>
             </div>
@@ -416,15 +465,15 @@ function MarshallDashboard({ race, teams, history, onUpdateRace, onUpdateTeams, 
         </Card>
 
         {db.isLocalMode() && (
-          <Card title="Firebase Setup" className="border-amber-500/30">
+          <Card title="Cloud Setup" className="border-amber-500/30">
             <div className="space-y-3">
                <div className="p-3 bg-amber-600/5 rounded border border-amber-600/20">
                   <p className="text-[10px] font-bold text-amber-500 uppercase mb-1">⚠️ Local Mode Only</p>
                   <p className="text-[11px] leading-relaxed text-slate-400">
-                    To sync data between devices, you must connect a Firebase project.
+                    To sync data between devices, you must connect a Cloud project.
                   </p>
                   <p className="text-[11px] mt-2 font-bold text-amber-400">
-                    Click the "Firebase" badge in the header.
+                    Click the setup badge in the header.
                   </p>
                </div>
             </div>
