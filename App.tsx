@@ -149,8 +149,8 @@ const CloudSetupModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
             <div>
                <p className="text-white font-bold mb-1">Firebase (Database):</p>
                <p>1. Go to <a href="https://console.firebase.google.com" target="_blank" className="text-blue-400 underline">Firebase Console</a></p>
-               <p>2. Create Project -> Build -> Firestore (Test Mode).</p>
-               <p>3. Project Settings -> Web App -> Copy config keys.</p>
+               <p>2. Create Project &rarr; Build &rarr; Firestore (Test Mode).</p>
+               <p>3. Project Settings &rarr; Web App &rarr; Copy config keys.</p>
             </div>
             <div>
                <p className="text-white font-bold mb-1">Gemini (AI Commentary):</p>
